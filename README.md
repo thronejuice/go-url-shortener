@@ -22,8 +22,17 @@ migrations        SQL migrations
 ## Roadmap
 
 - [x] Week 1: project skeleton, `/healthz`, slog, graceful shutdown, CI
-- [ ] Week 2: create/redirect links, PostgreSQL, migrations
+- [x] Day 2: create/redirect links (in-memory store behind `link.Store`)
+- [ ] Week 2: PostgreSQL store, migrations
 - [ ] Week 3: tests (testcontainers), Redis cache, rate limiting
 - [ ] Week 4: Docker/CI polish, push image to GHCR
 - [ ] Week 5: Prometheus metrics + Grafana
 - [ ] Week 6: deploy, architecture diagram, live demo link
+
+## API
+
+```bash
+curl -XPOST localhost:8080/api/links -d '{"url":"https://go.dev"}'
+# {"code":"VNrGoxp","url":"https://go.dev","created_at":"..."}
+curl -i localhost:8080/VNrGoxp   # 302 -> https://go.dev
+```

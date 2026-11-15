@@ -2,23 +2,79 @@
 package server
 
 import (
+	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/thronejuice/go-url-shortener/internal/link"
 )
 
-func New(logger *slog.Logger) http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /healthz", healthz)
+type Server struct {
+	logger *slog.Logger
+	links  *link.Service
+}
 
-	// TODO(week 2): POST /api/links, GET /{code}
+func New(logger *slog.Logger, links *link.Service) http.Handler {
+	s := &Server{logger: logger, links: links}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", s.healthz)
+	mux.HandleFunc("POST /api/links", s.createLink)
+	mux.HandleFunc("GET /{code}", s.redirect)
 
 	return logging(logger, mux)
 }
 
-func healthz(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) healthz(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+type createLinkRequest struct {
+	URL string `json:"url"`
+}
+
+func (s *Server) createLink(w http.ResponseWriter, r *http.Request) {
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	var req createLinkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid JSON body")
+		return
+	}
+	l, err := s.links.Shorten(r.Context(), req.URL)
+	switch {
+	case errors.Is(err, link.ErrInvalidURL):
+		writeError(w, http.StatusUnprocessableEntity, "url must be an absolute http(s) URL")
+	case err != nil:
+		s.logger.Error("shorten failed", "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+	default:
+		writeJSON(w, http.StatusCreated, l)
+	}
+}
+
+func (s *Server) redirect(w http.ResponseWriter, r *http.Request) {
+	l, err := s.links.Resolve(r.Context(), r.PathValue("code"))
+	switch {
+	case errors.Is(err, link.ErrNotFound):
+		writeError(w, http.StatusNotFound, "link not found")
+	case err != nil:
+		s.logger.Error("resolve failed", "err", err)
+		writeError(w, http.StatusInternalServerError, "internal error")
+	default:
+		http.Redirect(w, r, l.URL, http.StatusFound)
+	}
+}
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
-	_, _ = w.Write([]byte(`{"status":"ok"}`))
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func writeError(w http.ResponseWriter, status int, msg string) {
+	writeJSON(w, status, map[string]string{"error": msg})
 }
 
 func logging(logger *slog.Logger, next http.Handler) http.Handler {

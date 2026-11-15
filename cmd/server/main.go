@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/thronejuice/go-url-shortener/internal/config"
+	"github.com/thronejuice/go-url-shortener/internal/link"
 	"github.com/thronejuice/go-url-shortener/internal/server"
 )
 
@@ -22,7 +23,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           server.New(logger),
+		Handler:           server.New(logger, link.NewService(link.NewMemoryStore())),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
