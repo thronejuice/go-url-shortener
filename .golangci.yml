@@ -5,6 +5,10 @@ linters:
     - govet
     - staticcheck
     - revive
+  exclusions:
+    presets:
+      - comments
+      - std-error-handling
 formatters:
   enable:
     - gofmt
