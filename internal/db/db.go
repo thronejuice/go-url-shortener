@@ -21,9 +21,7 @@ func Migrate(databaseURL string) error {
 		return err
 	}
 
-	// driver ของ golang-migrate ใช้ scheme pgx5://
-	url := strings.Replace(databaseURL, "postgres://", "pgx5://", 1)
-	m, err := migrate.NewWithSourceInstance("iofs", src, url)
+	m, err := migrate.NewWithSourceInstance("iofs", src, migrateURL(databaseURL))
 	if err != nil {
 		return err
 	}
@@ -45,4 +43,14 @@ func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 		return nil, err
 	}
 	return pool, nil
+}
+
+// migrateURL maps postgres:// and postgresql:// to the pgx5:// scheme golang-migrate expects.
+func migrateURL(u string) string {
+	for _, p := range []string{"postgresql://", "postgres://"} {
+		if rest, ok := strings.CutPrefix(u, p); ok {
+			return "pgx5://" + rest
+		}
+	}
+	return u
 }
