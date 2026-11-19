@@ -58,7 +58,7 @@ func (c Config) LogValue() slog.Value {
 		slog.String("addr", c.Addr),
 		slog.String("database_url", redact(c.DatabaseURL)),
 		slog.String("redis_url", redact(c.RedisURL)),
-		slog.Duration("shutdown_timeout", c.ShutdownTimeout),
+		slog.String("shutdown_timeout", c.ShutdownTimeout.String()),
 	)
 }
 

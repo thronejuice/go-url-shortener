@@ -48,3 +48,32 @@ func TestLoadReportsAllProblemsAtOnce(t *testing.T) {
 		}
 	}
 }
+
+func TestRedact(t *testing.T) {
+	got := redact("postgres://app:s3cret@db:5432/shortener")
+	if strings.Contains(got, "s3cret") {
+		t.Fatalf("password leaked: %s", got)
+	}
+	if redact("") != "" {
+		t.Fatal("empty input should stay empty")
+	}
+}
+
+func TestLogValueRedactsSecretsAndPrintsReadableDuration(t *testing.T) {
+	cfg := Config{
+		Env:             "dev",
+		Addr:            ":8080",
+		DatabaseURL:     "postgres://app:s3cret@db:5432/shortener",
+		RedisURL:        "redis://:hunter2@cache:6379",
+		ShutdownTimeout: 10 * time.Second,
+	}
+	out := cfg.LogValue().String()
+	for _, secret := range []string{"s3cret", "hunter2"} {
+		if strings.Contains(out, secret) {
+			t.Fatalf("secret %q leaked in %s", secret, out)
+		}
+	}
+	if !strings.Contains(out, "10s") {
+		t.Fatalf("duration not human readable: %s", out)
+	}
+}
