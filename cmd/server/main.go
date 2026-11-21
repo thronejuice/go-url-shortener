@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/thronejuice/go-url-shortener/internal/config"
 	"github.com/thronejuice/go-url-shortener/internal/db"
 	"github.com/thronejuice/go-url-shortener/internal/link"
@@ -31,6 +32,19 @@ func main() {
 	defer stop()
 
 	var store link.Store = link.NewMemoryStore()
+	if cfg.RedisURL != "" {
+		opts, err := redis.ParseURL(cfg.RedisURL)
+		if err != nil {
+			logger.Error("invalid REDIS_URL", "err", err)
+			os.Exit(1)
+		}
+		opts.DialTimeout = 200 * time.Millisecond
+		opts.ReadTimeout = 200 * time.Millisecond
+		opts.WriteTimeout = 200 * time.Millisecond
+		rdb := redis.NewClient(opts)
+		defer rdb.Close()
+		store = link.NewCachedStore(store, rdb, time.Hour, logger)
+	}
 	if cfg.DatabaseURL != "" {
 		if err := db.Migrate(cfg.DatabaseURL); err != nil {
 			logger.Error("migrate failed", "err", err)
